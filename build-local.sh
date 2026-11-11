@@ -18,13 +18,13 @@ xcodebuild \
   -configuration Release \
   -sdk iphoneos \
   -destination 'generic/platform=iOS' \
-  -derivedDataPath build \
   CODE_SIGNING_ALLOWED=NO \
   CODE_SIGNING_REQUIRED=NO \
-  CODE_SIGN_IDENTITY="" \
+  CODE_SIGN_IDENTITY= \
+  CONFIGURATION_BUILD_DIR="$PWD/build/out" \
   build
 
-APP="build/Build/Products/Release-iphoneos/WHOOSHTech.app"
+APP="build/out/WHOOSHTech.app"
 test -d "$APP" || { echo "не найден $APP"; exit 1; }
 
 echo "→ упаковка"

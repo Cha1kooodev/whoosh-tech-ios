@@ -29,7 +29,7 @@ final class ScooterAnnotation: NSObject, MKAnnotation {
 final class ScooterAnnotationView: MKAnnotationView {
     static let reuseID = "scooter-tag"
 
-    private let tag = UIView()
+    private let tagView = UIView()
     private let label = UILabel()
     private let dot = UIView()
 
@@ -44,13 +44,13 @@ final class ScooterAnnotationView: MKAnnotationView {
         frame = CGRect(x: 0, y: 0, width: 110, height: 44)
         centerOffset = CGPoint(x: 0, y: -9.5)
 
-        tag.layer.cornerRadius = 6
-        tag.layer.borderWidth = 1
-        tag.backgroundColor = UIColor(red: 0.043, green: 0.055, blue: 0.075, alpha: 1)
-        tag.layer.shadowColor = UIColor.black.cgColor
-        tag.layer.shadowOpacity = 0.55
-        tag.layer.shadowRadius = 4
-        tag.layer.shadowOffset = CGSize(width: 0, height: 2)
+        tagView.layer.cornerRadius = 6
+        tagView.layer.borderWidth = 1
+        tagView.backgroundColor = UIColor(red: 0.043, green: 0.055, blue: 0.075, alpha: 1)
+        tagView.layer.shadowColor = UIColor.black.cgColor
+        tagView.layer.shadowOpacity = 0.55
+        tagView.layer.shadowRadius = 4
+        tagView.layer.shadowOffset = CGSize(width: 0, height: 2)
 
         label.font = UIFont.monospacedSystemFont(ofSize: 10.5, weight: .bold)
         label.textAlignment = .center
@@ -60,8 +60,8 @@ final class ScooterAnnotationView: MKAnnotationView {
         dot.layer.borderWidth = 1.5
         dot.layer.borderColor = UIColor(red: 0.043, green: 0.055, blue: 0.075, alpha: 1).cgColor
 
-        addSubview(tag)
-        tag.addSubview(label)
+        addSubview(tagView)
+        tagView.addSubview(label)
         addSubview(dot)
     }
 
@@ -75,15 +75,15 @@ final class ScooterAnnotationView: MKAnnotationView {
 
         label.text = code
         label.textColor = color
-        tag.layer.borderColor = color.withAlphaComponent(0.75).cgColor
+        tagView.layer.borderColor = color.withAlphaComponent(0.75).cgColor
 
         let font = label.font ?? UIFont.monospacedSystemFont(ofSize: 10.5, weight: .bold)
         let textWidth = ceil((code as NSString).size(withAttributes: [.font: font]).width)
         let tagWidth = max(34, textWidth + 14)
         let tagHeight: CGFloat = 20
 
-        tag.frame = CGRect(x: (bounds.width - tagWidth) / 2, y: 0, width: tagWidth, height: tagHeight)
-        label.frame = tag.bounds
+        tagView.frame = CGRect(x: (bounds.width - tagWidth) / 2, y: 0, width: tagWidth, height: tagHeight)
+        label.frame = tagView.bounds
         dot.frame = CGRect(x: (bounds.width - 13) / 2, y: 25, width: 13, height: 13)
 
         dot.backgroundColor = color
@@ -225,7 +225,7 @@ struct ScooterMap: UIViewRepresentable {
                       let sc = model.scooters.first(where: { $0.id == id }) else { return }
 
                 let coordinate = model.coordinate(for: sc)
-                let point = map.point(for: MKMapPoint(coordinate))
+                let point = map.convert(coordinate, toPointTo: map)
                 programmatic = true
 
                 if map.bounds.contains(point) {

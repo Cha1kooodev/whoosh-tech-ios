@@ -26,39 +26,38 @@ jobs:
         run: |
           set -euo pipefail
 
-          build_scheme() {
-            xcodebuild \
+          OUT="$PWD/build/out"
+          rm -rf "$OUT"
+
+          if ! xcodebuild \
               -project WHOOSHTech.xcodeproj \
               -scheme WHOOSHTech \
               -configuration Release \
               -sdk iphoneos \
               -destination 'generic/platform=iOS' \
-              -derivedDataPath build \
               CODE_SIGNING_ALLOWED=NO \
               CODE_SIGNING_REQUIRED=NO \
-              CODE_SIGN_IDENTITY="" \
-              build
-          }
-
-          if ! build_scheme; then
+              CODE_SIGN_IDENTITY= \
+              CONFIGURATION_BUILD_DIR="$OUT" \
+              build; then
             echo "::warning::Сборка по схеме не удалась, пробую по target"
             xcodebuild \
               -project WHOOSHTech.xcodeproj \
               -target WHOOSHTech \
               -configuration Release \
               -sdk iphoneos \
-              -derivedDataPath build \
               CODE_SIGNING_ALLOWED=NO \
               CODE_SIGNING_REQUIRED=NO \
-              CODE_SIGN_IDENTITY="" \
+              CODE_SIGN_IDENTITY= \
+              CONFIGURATION_BUILD_DIR="$OUT" \
               build
           fi
 
       - name: Упаковать .ipa
         run: |
           set -euo pipefail
-          APP="build/Build/Products/Release-iphoneos/WHOOSHTech.app"
-          test -d "$APP" || { echo "Не найден $APP"; ls -R build/Build/Products || true; exit 1; }
+          APP="build/out/WHOOSHTech.app"
+          test -d "$APP" || { echo "Не найден $APP"; ls -R build || true; exit 1; }
           rm -rf Payload WHOOSHTech.ipa
           mkdir -p Payload
           cp -R "$APP" Payload/
