@@ -8,37 +8,57 @@ on:
 jobs:
   build:
     runs-on: macos-15
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Показать версию Xcode
+      - name: Версия Xcode
         run: |
           xcodebuild -version
           xcrun -sdk iphoneos --show-sdk-version
 
+      - name: Схемы проекта
+        run: xcodebuild -list -project WHOOSHTech.xcodeproj
+
       - name: Собрать приложение (без подписи)
         run: |
           set -euo pipefail
-          xcodebuild \
-            -project WHOOSHTech.xcodeproj \
-            -scheme WHOOSHTech \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            build
+
+          build_scheme() {
+            xcodebuild \
+              -project WHOOSHTech.xcodeproj \
+              -scheme WHOOSHTech \
+              -configuration Release \
+              -sdk iphoneos \
+              -destination 'generic/platform=iOS' \
+              -derivedDataPath build \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGN_IDENTITY="" \
+              build
+          }
+
+          if ! build_scheme; then
+            echo "::warning::Сборка по схеме не удалась, пробую по target"
+            xcodebuild \
+              -project WHOOSHTech.xcodeproj \
+              -target WHOOSHTech \
+              -configuration Release \
+              -sdk iphoneos \
+              -derivedDataPath build \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGN_IDENTITY="" \
+              build
+          fi
 
       - name: Упаковать .ipa
         run: |
           set -euo pipefail
           APP="build/Build/Products/Release-iphoneos/WHOOSHTech.app"
-          test -d "$APP" || { echo "Не найден $APP"; ls -R build/Build/Products; exit 1; }
+          test -d "$APP" || { echo "Не найден $APP"; ls -R build/Build/Products || true; exit 1; }
           rm -rf Payload WHOOSHTech.ipa
           mkdir -p Payload
           cp -R "$APP" Payload/

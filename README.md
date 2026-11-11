@@ -23,15 +23,12 @@ SwiftUI + MapKit + CoreLocation. Реальный GPS телефона, тёмн
 
 ### 2. Залить эту папку
 
-Быстрый способ через терминал (подставь свой логин и имя репозитория):
+Папка уже инициализирована как git-репозиторий с одним коммитом.
+Осталось добавить remote и запушить (подставь свой логин и имя репозитория):
 
 ```bash
 cd "/Users/chaika/Documents/Проект по умолчанию/whoosh-ios"
 
-git init
-git add .
-git commit -m "WHOOSH tech iOS"
-git branch -M main
 git remote add origin https://github.com/ТВОЙ_ЛОГИН/whoosh-tech-ios.git
 git push -u origin main
 ```
@@ -40,9 +37,10 @@ git push -u origin main
 (Settings → Developer settings → Personal access tokens → Tokens (classic),
 права `repo`), а не пароль от аккаунта.
 
-Можно и без терминала: на странице пустого репозитория
+Альтернатива без терминала: на странице пустого репозитория
 «uploading an existing file» → перетащить **содержимое** папки
 (`WHOOSHTech/`, `WHOOSHTech.xcodeproj/`, `.github/`, `README.md`).
+Папку `.github` в Finder видно через `Cmd+Shift+.`.
 
 ### 3. Забрать .ipa
 

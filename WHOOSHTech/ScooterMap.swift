@@ -108,7 +108,6 @@ struct ScooterMap: UIViewRepresentable {
 
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView(frame: .zero)
-        map.delegate = context.coordinator
         map.overrideUserInterfaceStyle = .dark
         map.showsUserLocation = true
         map.showsCompass = false
@@ -124,6 +123,7 @@ struct ScooterMap: UIViewRepresentable {
                                         longitudinalMeters: 2200)
         map.setRegion(region, animated: false)
 
+        map.delegate = context.coordinator
         context.coordinator.mapView = map
         context.coordinator.sync(model: model)
         return map
@@ -256,9 +256,9 @@ struct ScooterMap: UIViewRepresentable {
             return result
         }
 
-        func mapView(_ mapView: MKMapView, didSelect annotation: MKAnnotation) {
-            guard let ann = annotation as? ScooterAnnotation else { return }
-            mapView.deselectAnnotation(annotation, animated: false)
+        func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
+            guard let ann = view.annotation as? ScooterAnnotation else { return }
+            mapView.deselectAnnotation(view.annotation, animated: false)
             parent.model.selectedID = ann.scooterID
         }
 
