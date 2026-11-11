@@ -175,7 +175,7 @@ enum ScooterWorld {
         let length = lengthRoll < 0.30 ? 4 : (lengthRoll < 0.70 ? 5 : 6)
         let code = makeCode(length: length, rng: &rng)
         let prefix = String(length)
-        let full = "\(prefix)-\(code)"
+        let full = "\(prefix)-\(code)@\(cx),\(cy),\(slot)"
 
         let statusRoll = rng.next()
         var status: ScooterStatus
