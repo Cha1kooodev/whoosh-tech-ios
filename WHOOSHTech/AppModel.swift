@@ -19,10 +19,14 @@ struct CenterRequest: Equatable {
 }
 
 final class AppModel: ObservableObject {
-    static let defaultAnchor = CLLocationCoordinate2D(latitude: 55.7512, longitude: 37.6173)
+    static let defaultCenter = CLLocationCoordinate2D(latitude: 55.7512, longitude: 37.6173)
 
-    @Published private(set) var scooters: [Scooter]
-    @Published private(set) var anchor: CLLocationCoordinate2D = AppModel.defaultAnchor
+    /// Предел области, которую держим в памяти. Дальше — только центр
+    /// видимой части: так карта не пытается сгенерировать весь земной шар.
+    static let maxSpanLat = 0.06      // ~6.7 км
+    static let maxSpanLon = 0.10      // ~6.2 км на широте Москвы
+
+    @Published private(set) var scooters: [Scooter] = []
     @Published var query: String = ""
     @Published var selectedID: String?
     @Published private(set) var userLocation: CLLocation?
@@ -35,20 +39,16 @@ final class AppModel: ObservableObject {
     let location = LocationProvider()
 
     private var cancellables = Set<AnyCancellable>()
-    private var anchoredToUser = false
+    private var overrides: [String: ScooterStatus] = [:]
+    private var generatedBox: ScooterWorld.Box?
+    private var visibleBox: ScooterWorld.Box?
+    private var pendingSelection: String?
+    private var firstFixHandled = false
     private var toastWorkItem: DispatchWorkItem?
     private let statusKey = "whoosh-tech-ios-statuses-v1"
 
     init() {
-        scooters = ScooterCatalog.make()
-
-        if let saved = UserDefaults.standard.dictionary(forKey: statusKey) as? [String: String] {
-            for i in scooters.indices {
-                if let raw = saved[scooters[i].id], let st = ScooterStatus(rawValue: raw) {
-                    scooters[i].status = st
-                }
-            }
-        }
+        loadOverrides()
 
         location.$location
             .compactMap { $0 }
@@ -64,19 +64,39 @@ final class AppModel: ObservableObject {
         location.start()
     }
 
-    // MARK: - Геометрия
+    // MARK: - Генерация по карте
 
-    func coordinate(for scooter: Scooter) -> CLLocationCoordinate2D {
-        let dLat = scooter.offsetY / 111_320.0
-        let dLon = scooter.offsetX / (111_320.0 * cos(anchor.latitude * .pi / 180))
-        return CLLocationCoordinate2D(latitude: anchor.latitude + dLat,
-                                      longitude: anchor.longitude + dLon)
+    /// Вызывается картой: пересчитывает самокаты под видимую область.
+    /// Пока видимая область помещается в уже сгенерированную — ничего не делает.
+    func refreshVisible(_ box: ScooterWorld.Box) {
+        guard box.spanLat > 0, box.spanLon > 0 else { return }
+        visibleBox = box
+
+        let clamped = box.limited(maxSpanLat: Self.maxSpanLat, maxSpanLon: Self.maxSpanLon)
+        if let generated = generatedBox, generated.contains(clamped) { return }
+
+        let target = clamped
+            .expanded(1.3)
+            .limited(maxSpanLat: Self.maxSpanLat, maxSpanLon: Self.maxSpanLon)
+        generatedBox = target
+
+        let list = ScooterWorld.scooters(in: target, overrides: overrides)
+        scooters = list
+
+        if let pending = pendingSelection, list.contains(where: { $0.id == pending }) {
+            selectedID = pending
+            pendingSelection = nil
+        } else if let selected = selectedID, !list.contains(where: { $0.id == selected }) {
+            selectedID = nil
+        }
     }
+
+    // MARK: - Геометрия
 
     func distance(to scooter: Scooter) -> CLLocationDistance? {
         guard let me = userLocation else { return nil }
-        let c = coordinate(for: scooter)
-        return me.distance(from: CLLocation(latitude: c.latitude, longitude: c.longitude))
+        return me.distance(from: CLLocation(latitude: scooter.latitude,
+                                            longitude: scooter.longitude))
     }
 
     // MARK: - Поиск и счётчики
@@ -100,6 +120,36 @@ final class AppModel: ObservableObject {
         scooters.filter { $0.status == status }.count
     }
 
+    /// Ищет самокат на карте, а если рядом нет — сканирует область вокруг
+    /// видимого участка и перелетает к найденному.
+    func submitSearch() {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard q.count >= 2 else { return }
+
+        if let found = scooters.first(where: {
+            $0.code.contains(q) || $0.id.uppercased().contains(q)
+        }) {
+            selectedID = found.id
+            centerRequest = CenterRequest(coordinate: found.coordinate, meters: 700)
+            return
+        }
+
+        guard let visible = visibleBox else { return }
+        let area = visible.expanded(3).limited(maxSpanLat: 0.12, maxSpanLon: 0.2)
+        let scanned = ScooterWorld.scooters(in: area, overrides: overrides)
+
+        guard let found = scanned.first(where: {
+            $0.code.contains(q) || $0.id.uppercased().contains(q)
+        }) else {
+            showToast("Рядом нет самоката с таким номером")
+            return
+        }
+
+        pendingSelection = found.id
+        centerRequest = CenterRequest(coordinate: found.coordinate, meters: 700)
+        showToast("Нашёл: \(found.code)")
+    }
+
     // MARK: - Действия
 
     func setStatus(_ status: ScooterStatus, for id: String) {
@@ -108,6 +158,7 @@ final class AppModel: ObservableObject {
         if status == .stolen {
             scooters[index].iotOfflineMinutes = Int.random(in: 20...300)
         }
+        overrides[id] = status
         persist()
     }
 
@@ -139,20 +190,26 @@ final class AppModel: ObservableObject {
         userLocation = loc
         accuracy = loc.horizontalAccuracy
 
-        if !anchoredToUser {
-            anchoredToUser = true
-            let base = CLLocation(latitude: anchor.latitude, longitude: anchor.longitude)
-            if base.distance(from: loc) > 1200 {
-                anchor = loc.coordinate
-                showToast("Самокаты переставлены к вашему району")
+        guard !firstFixHandled else { return }
+        firstFixHandled = true
+
+        followUser = true
+        centerRequest = CenterRequest(coordinate: loc.coordinate, meters: 1100)
+    }
+
+    private func loadOverrides() {
+        guard let saved = UserDefaults.standard.dictionary(forKey: statusKey) as? [String: String] else {
+            return
+        }
+        for (key, raw) in saved {
+            if let status = ScooterStatus(rawValue: raw) {
+                overrides[key] = status
             }
-            followUser = true
-            centerRequest = CenterRequest(coordinate: loc.coordinate, meters: 1100)
         }
     }
 
     private func persist() {
-        let dict = Dictionary(uniqueKeysWithValues: scooters.map { ($0.id, $0.status.rawValue) })
+        let dict = Dictionary(uniqueKeysWithValues: overrides.map { ($0.key, $0.value.rawValue) })
         UserDefaults.standard.set(dict, forKey: statusKey)
     }
 }

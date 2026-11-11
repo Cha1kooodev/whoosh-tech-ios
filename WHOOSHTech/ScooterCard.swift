@@ -134,7 +134,7 @@ struct ScooterCard: View {
     }
 
     private var geoRow: some View {
-        let coordinate = model.coordinate(for: scooter)
+        let coordinate = scooter.coordinate
         let stolen = scooter.status == .stolen
         return infoRow(stolen ? "Последнее гео IoT" : "Гео") {
             HStack(spacing: 5) {
@@ -188,7 +188,7 @@ struct ScooterCard: View {
     @ViewBuilder
     private var warningView: some View {
         if scooter.status == .stolen {
-            warningText("Связь с IoT потеряна \(ScooterCatalog.ago(minutes: scooter.iotOfflineMinutes)). Координаты — последняя точка, которую успел передать трекер.")
+            warningText("Связь с IoT потеряна \(ScooterWorld.ago(minutes: scooter.iotOfflineMinutes)). Координаты — последняя точка, которую успел передать трекер.")
         } else if scooter.status == .lost {
             warningText("ТС помечено как LOST. Ищите по последнему отклику BLE.")
         }

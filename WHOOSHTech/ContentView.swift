@@ -145,7 +145,7 @@ struct ContentView: View {
 
     private var statsRow: some View {
         HStack(spacing: 6) {
-            statCell("всего", model.scooters.count, Color.textPrimary)
+            statCell("на карте", model.scooters.count, Color.textPrimary)
             statCell("в доступе", model.count(.available), ScooterStatus.available.color)
             statCell("разряжено", model.count(.low), ScooterStatus.low.color)
             statCell("LOST", model.count(.lost), ScooterStatus.lost.color)
@@ -183,6 +183,8 @@ struct ContentView: View {
             TextField("Поиск по номеру — например PSB430", text: $model.query)
                 .textInputAutocapitalization(.characters)
                 .autocorrectionDisabled(true)
+                .submitLabel(.search)
+                .onSubmit { model.submitSearch() }
                 .font(.system(size: 14))
                 .foregroundColor(Color.textPrimary)
 

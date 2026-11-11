@@ -118,7 +118,7 @@ struct ScooterMap: UIViewRepresentable {
         map.register(ScooterAnnotationView.self,
                      forAnnotationViewWithReuseIdentifier: ScooterAnnotationView.reuseID)
 
-        let region = MKCoordinateRegion(center: AppModel.defaultAnchor,
+        let region = MKCoordinateRegion(center: AppModel.defaultCenter,
                                         latitudinalMeters: 2200,
                                         longitudinalMeters: 2200)
         map.setRegion(region, animated: false)
@@ -133,6 +133,13 @@ struct ScooterMap: UIViewRepresentable {
         context.coordinator.parent = self
         context.coordinator.sync(model: model)
         context.coordinator.updateCamera(model: model, map: map)
+
+        let coordinator = context.coordinator
+        let mapView = map
+        let appModel = model
+        DispatchQueue.main.async {
+            coordinator.refreshVisible(model: appModel, map: mapView)
+        }
     }
 
     // MARK: - Coordinator
@@ -162,7 +169,7 @@ struct ScooterMap: UIViewRepresentable {
             var toAdd: [ScooterAnnotation] = []
 
             for sc in model.scooters {
-                let coordinate = model.coordinate(for: sc)
+                let coordinate = sc.coordinate
                 let dimmed = !model.matchesSearch(sc)
 
                 if let ann = existing[sc.id] {
@@ -224,7 +231,7 @@ struct ScooterMap: UIViewRepresentable {
                 guard let id = model.selectedID,
                       let sc = model.scooters.first(where: { $0.id == id }) else { return }
 
-                let coordinate = model.coordinate(for: sc)
+                let coordinate = sc.coordinate
                 let point = map.convert(coordinate, toPointTo: map)
                 programmatic = true
 
@@ -241,6 +248,24 @@ struct ScooterMap: UIViewRepresentable {
         }
 
         // MARK: MKMapViewDelegate
+
+        /// Пересчитывает самокаты под текущий видимый прямоугольник карты.
+        func refreshVisible(model: AppModel, map: MKMapView) {
+            let region = map.region
+            guard region.span.latitudeDelta > 0, region.span.longitudeDelta > 0 else { return }
+
+            let box = ScooterWorld.Box(
+                minLat: region.center.latitude - region.span.latitudeDelta / 2,
+                maxLat: region.center.latitude + region.span.latitudeDelta / 2,
+                minLon: region.center.longitude - region.span.longitudeDelta / 2,
+                maxLon: region.center.longitude + region.span.longitudeDelta / 2
+            )
+            model.refreshVisible(box)
+        }
+
+        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+            refreshVisible(model: parent.model, map: mapView)
+        }
 
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
             guard let ann = annotation as? ScooterAnnotation else { return nil }
